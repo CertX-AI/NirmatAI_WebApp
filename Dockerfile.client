@@ -1,0 +1,26 @@
+# Use the Python image
+FROM python:3.12-bullseye
+
+# Set python alias
+RUN ln -s /usr/bin/python3 /usr/bin/python
+
+# Set the working directory
+WORKDIR /app
+
+# Copy only the pyproject.toml for dependency installation
+COPY pyproject.toml .
+
+# Install the dependencies
+RUN pip install .
+
+# Copy the rest of the app's files into the container
+COPY nirmatai_webapp/ nirmatai_webapp/
+
+# Copy the configuration files
+COPY .streamlit/ .streamlit/
+
+# Health check for Streamlit
+HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health
+
+# Run the Streamlit app (adjusted path to match your structure)
+ENTRYPOINT ["streamlit", "run", "nirmatai_webapp/streamlit_app.py"]

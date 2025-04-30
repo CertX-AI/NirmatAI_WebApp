@@ -1,0 +1,69 @@
+- name: Create pod and run containers
+  hosts: localhost
+  vars:
+    # The desired state of the containers (started/stopped)
+    container_state: started
+
+    # Set to true to start only the development container
+    development_config_only: false
+
+    # Set the path for artifact storage
+    mlflow_artifacts: "/home/mlflow_server/mlflow_tracking/artifacts/:/home/mlflow_server/mlflow_tracking/artifacts/"
+
+    # Set the timezone for Switzerland
+    timezone: "Europe/Zurich"
+
+    # Common environment variables for the client container
+    client_env:
+      MLFLOW_TRACKING_URI: "http://host.containers.internal:5000"
+      NIRMATAI_BASE_URL: "http://host.containers.internal:8000"
+      TZ: "{{ timezone }}"  # Set Switzerland timezone
+      PYTHONPATH: "/app"
+
+    # Common environment variables for the development container
+    development_env:
+      MLFLOW_TRACKING_URI: "http://host.containers.internal:5000"
+      NIRMATAI_BASE_URL: "http://host.containers.internal:8000"
+      TZ: "{{ timezone }}"  # Set Switzerland timezone
+
+  tasks:
+    # Build the client image only if not in dev-only mode
+    - name: Build client image
+      containers.podman.podman_image:
+        name: webapp
+        state: build
+        force: true
+        build:
+          file: ./Dockerfile.client
+      when: not development_config_only | bool
+
+    # Always build the dev image
+    - name: Build development image
+      containers.podman.podman_image:
+        name: dev
+        state: build
+        force: true
+        build:
+          file: ./Dockerfile.dev
+
+    # Create and run client container in the pod
+    - name: Create and run client container
+      containers.podman.podman_container:
+        name: webapp
+        image: webapp:latest
+        state: "{{ container_state }}"
+        detach: true
+        volume: "{{ [mlflow_artifacts] if not development_config_only | bool else omit }}"
+        env: "{{ client_env }}"
+      when: not development_config_only | bool
+
+    # Create and run the dev container inside the pod
+    - name: Create and run dev container
+      containers.podman.podman_container:
+        name: dev
+        image: dev:latest
+        state: "{{ container_state }}"
+        detach: true
+        volume: "{{ ['./:/app', mlflow_artifacts] if not development_config_only | bool else ['./:/app'] }}" # Mount the current directory
+        env: "{{ development_env }}"
+      when: development_config_only | bool
