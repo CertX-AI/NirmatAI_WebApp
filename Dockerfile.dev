@@ -1,0 +1,29 @@
+# Use the Python image
+FROM python:3.12-bullseye
+
+# Install ping and nslookup
+RUN apt-get update && apt-get install -y iputils-ping dnsutils
+
+# Set python alias
+RUN ln -s /usr/bin/python3 /usr/bin/python
+
+# Set environment variable to include the current directory in PYTHONPATH
+ENV PYTHONPATH=/app
+
+# Set the working directory
+WORKDIR /app
+
+# Copy only the pyproject.toml for dev dependencies installation
+COPY pyproject.toml .
+
+# Install the dependencies with dev and docs extras
+RUN pip install .[dev,docs]
+
+# Install ansible podman plugin
+RUN ansible-galaxy collection install containers.podman
+
+# Health check for Streamlit
+HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health
+
+# Run the Streamlit app (adjusted path to match your structure)
+ENTRYPOINT ["streamlit", "run", "nirmatai_webapp/streamlit_app.py"]
